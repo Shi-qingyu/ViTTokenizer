@@ -8,6 +8,8 @@ from omegaconf import OmegaConf
 from functools import partial
 from PIL import Image
 from tqdm import tqdm
+
+import torch
 from torch.utils.data import Dataset, Subset
 
 import taming.data.utils as tdu
@@ -392,3 +394,61 @@ class ImageNetSRValidation(ImageNetSR):
             indices = pickle.load(f)
         dset = ImageNetValidation(process_images=False,)
         return Subset(dset, indices)
+
+
+class CustomImagePaths(ImagePaths):
+    def __getitem__(self, i):
+        example = dict()
+        image_path = self.labels["file_path_"][i]
+        feature_path = image_path.replace(".JPEG", ".pth").replace(".jpeg", ".pth")
+        example["image"] = self.preprocess_image(image_path)
+        example["aux_feature"] = torch.load(feature_path)
+        for k in self.labels:
+            example[k] = self.labels[k][i]
+        return example
+
+
+class CustomImageNetBase(ImageNetBase):
+    def _load(self):
+        with open(self.txt_filelist, "r") as f:
+            self.relpaths = f.read().splitlines()
+            l1 = len(self.relpaths)
+            self.relpaths = self._filter_relpaths(self.relpaths)
+            print("Removed {} files from filelist during filtering.".format(l1 - len(self.relpaths)))
+
+        self.synsets = [p.split("/")[0] for p in self.relpaths if p != ""]
+        self.abspaths = [os.path.join(self.datadir, p) for p in self.relpaths if p != ""]
+
+        unique_synsets = np.unique(self.synsets)
+        class_dict = dict((synset, i) for i, synset in enumerate(unique_synsets))
+        if not self.keep_orig_class_label:
+            self.class_labels = [class_dict[s] for s in self.synsets]
+        else:
+            self.class_labels = [self.synset2idx[s] for s in self.synsets]
+
+        with open(self.human_dict, "r") as f:
+            human_dict = f.read().splitlines()
+            human_dict = dict(line.split(maxsplit=1) for line in human_dict)
+
+        self.human_labels = [human_dict[s] for s in self.synsets]
+
+        labels = {
+            "relpath": np.array(self.relpaths),
+            "synsets": np.array(self.synsets),
+            "class_label": np.array(self.class_labels),
+            "human_label": np.array(self.human_labels),
+        }
+
+        if self.process_images:
+            self.size = retrieve(self.config, "size", default=256)
+            self.data = CustomImagePaths(self.abspaths,
+                                   labels=labels,
+                                   size=self.size,
+                                   random_crop=self.random_crop,
+                                   )
+        else:
+            self.data = self.abspaths
+
+
+class CustomImageNetTrain(CustomImageNetBase):
+    pass

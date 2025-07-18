@@ -350,7 +350,7 @@ class AutoencoderKL(pl.LightningModule):
         dec = self.decoder(z)
         return dec
 
-    def forward(self, input, sample_posterior=True):
+    def forward(self, input, aux_feature=None, sample_posterior=True):
         posterior = self.encode(input)
         if sample_posterior:
             z = posterior.sample()
@@ -358,8 +358,9 @@ class AutoencoderKL(pl.LightningModule):
             z = posterior.mode()
         dec = self.decode(z)
 
-        if self.use_vf is not None:
-            aux_feature = self.foundation_model(input)
+        if self.use_vf:
+            if aux_feature is None:
+                aux_feature = self.foundation_model(input)
             if not self.reverse_proj:
                 aux_feature = self.linear_proj(aux_feature)
             else:
@@ -377,7 +378,18 @@ class AutoencoderKL(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
-        reconstructions, posterior, z, aux_feature = self(inputs)
+        aux_feature = batch.get("aux_feature", None)
+
+        if aux_feature is not None:
+            if hasattr(self, "foundation_model"):
+                del self.foundation_model
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            aux_feature = aux_feature.to(self.device)
+
+        reconstructions, posterior, z, aux_feature = self(inputs, aux_feature)
         ae_opt, disc_opt = self.optimizers()
 
         # if optimizer_idx == 0:

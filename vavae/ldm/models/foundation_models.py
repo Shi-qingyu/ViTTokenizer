@@ -23,9 +23,11 @@ def get_offline_model_path(model_type):
         Path to the offline model directory if it exists, None otherwise
     """
     # Check common cache locations
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    vavae_dir = os.path.dirname(os.path.dirname(script_dir))
+
     cache_locations = [
-        './offline_models',
-        '~/.cache/huggingface/hub'
+        os.path.join(vavae_dir, 'offline_models'),
     ]
     
     model_names = {
@@ -215,7 +217,7 @@ def get_dinov2_encoder():
     model_name = "hf-hub:timm/vit_large_patch14_dinov2.lvd142m"
     
     # Check if we're in offline mode or if local cache exists
-    offline_mode = os.environ.get('HF_HUB_OFFLINE', '0') == '1'
+    offline_mode = os.environ.get('HF_HUB_OFFLINE', '1') == '1'
     offline_path = get_offline_model_path('dinov2')
     
     if offline_mode or offline_path:

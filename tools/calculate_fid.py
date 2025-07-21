@@ -38,6 +38,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import Dataset
 import torchvision
 import numpy as np
 import torchvision.transforms as TF
@@ -670,9 +671,9 @@ def main():
     else:
         num_workers = args.num_workers
 
-    if args.save_stats:
-        save_fid_stats(args.path, args.batch_size, device, args.dims, num_workers)
-        return
+    # if args.save_stats:
+    #     save_fid_stats(args.path, args.batch_size, device, args.dims, num_workers)
+    #     return
 
     fid_value = calculate_fid_given_paths(
         args.path, args.batch_size, device, args.dims, num_workers

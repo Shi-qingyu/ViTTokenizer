@@ -4,3 +4,4 @@ output/*
 tensorboard_logs
 *internal*
 guided-diffusion
+eval_results

@@ -38,12 +38,20 @@ def save_image(image, filename):
 def evaluate_tokenizer(config_path, model_type, data_path, output_path):
     # Initialize distributed training
     dist.init_process_group(backend='nccl')
-    local_rank = torch.distributed.get_rank()
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    global_rank = torch.distributed.get_rank()
+    world_size = torch.distributed.get_world_size()
+    
+    # Ensure local_rank is within available GPU range
+    num_gpus = torch.cuda.device_count()
+    if local_rank >= num_gpus:
+        local_rank = local_rank % num_gpus
+    
     torch.cuda.set_device(local_rank)
     device = torch.device(f'cuda:{local_rank}')
 
     # Load model
-    if local_rank == 0:
+    if global_rank == 0:
         print_with_prefix("Loading model...")
     if model_type == 'vavae':
         from tokenizer.vavae import VA_VAE
@@ -64,7 +72,7 @@ def evaluate_tokenizer(config_path, model_type, data_path, output_path):
 
     # Create dataset and dataloader
     dataset = ImageFolder(root=data_path, transform=transform)
-    distributed_sampler = DistributedSampler(dataset, num_replicas=dist.get_world_size(), rank=local_rank)
+    distributed_sampler = DistributedSampler(dataset, num_replicas=world_size, rank=global_rank)
     val_dataloader = DataLoader(
         dataset,
         batch_size=8,
@@ -85,7 +93,7 @@ def evaluate_tokenizer(config_path, model_type, data_path, output_path):
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(ref_path, exist_ok=True)
 
-    if local_rank == 0:
+    if global_rank == 0:
         print_with_prefix(f"Output dir: {save_dir}")
         print_with_prefix(f"Reference dir: {ref_path}")
 
@@ -214,8 +222,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', type=str, default='tokenizer/configs/vavae_f16d32.yaml')
     parser.add_argument('--model_type', type=str, default='vavae')
-    parser.add_argument('--data_path', type=str, default='/path/to/your/imagenet/ILSVRC2012_validation/data')
-    parser.add_argument('--output_path', type=str, default='/path/to/your/output')
+    parser.add_argument('--data_path', type=str, default='/data02/sqy/datasets/imageNet1K/ILSVRC2012_validation')
+    parser.add_argument('--output_path', type=str, default='eval_results')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
     evaluate_tokenizer(config_path=args.config_path, model_type=args.model_type, data_path=args.data_path, output_path=args.output_path)

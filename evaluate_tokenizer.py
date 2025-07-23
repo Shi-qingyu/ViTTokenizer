@@ -38,20 +38,12 @@ def save_image(image, filename):
 def evaluate_tokenizer(config_path, model_type, data_path, output_path):
     # Initialize distributed training
     dist.init_process_group(backend='nccl')
-    local_rank = int(os.environ.get('LOCAL_RANK', 0))
-    global_rank = torch.distributed.get_rank()
-    world_size = torch.distributed.get_world_size()
-    
-    # Ensure local_rank is within available GPU range
-    num_gpus = torch.cuda.device_count()
-    if local_rank >= num_gpus:
-        local_rank = local_rank % num_gpus
-    
+    local_rank = torch.distributed.get_rank()
     torch.cuda.set_device(local_rank)
     device = torch.device(f'cuda:{local_rank}')
 
     # Load model
-    if global_rank == 0:
+    if local_rank == 0:
         print_with_prefix("Loading model...")
     if model_type == 'vavae':
         from tokenizer.vavae import VA_VAE
@@ -72,7 +64,7 @@ def evaluate_tokenizer(config_path, model_type, data_path, output_path):
 
     # Create dataset and dataloader
     dataset = ImageFolder(root=data_path, transform=transform)
-    distributed_sampler = DistributedSampler(dataset, num_replicas=world_size, rank=global_rank)
+    distributed_sampler = DistributedSampler(dataset, num_replicas=dist.get_world_size(), rank=local_rank)
     val_dataloader = DataLoader(
         dataset,
         batch_size=8,
@@ -93,7 +85,7 @@ def evaluate_tokenizer(config_path, model_type, data_path, output_path):
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(ref_path, exist_ok=True)
 
-    if global_rank == 0:
+    if local_rank == 0:
         print_with_prefix(f"Output dir: {save_dir}")
         print_with_prefix(f"Reference dir: {ref_path}")
 
@@ -114,7 +106,12 @@ def evaluate_tokenizer(config_path, model_type, data_path, output_path):
     # Initialize metrics
     lpips_values = []
     ssim_values = []
-    lpips = LPIPS().to(device).eval()
+    # Try to use local checkpoint first, fallback to download if not available
+    try:
+        lpips = LPIPS(use_local_checkpoint=True).to(device).eval()
+    except FileNotFoundError:
+        print_with_prefix("Local LPIPS checkpoint not found, downloading from internet...", rank=local_rank)
+        lpips = LPIPS(use_local_checkpoint=False).to(device).eval()
     ssim_metric = StructuralSimilarityIndexMeasure(data_range=(-1.0, 1.0)).to(device)
 
     # Generate reconstructions and compute metrics

@@ -23,11 +23,11 @@ def get_offline_model_path(model_type):
         Path to the offline model directory if it exists, None otherwise
     """
     # Check common cache locations
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    vavae_dir = os.path.dirname(os.path.dirname(script_dir))
+    # script_dir = os.path.dirname(os.path.abspath(__file__))
+    # vavae_dir = os.path.dirname(os.path.dirname(script_dir))
 
     cache_locations = [
-        os.path.join(vavae_dir, 'offline_models'),
+        os.path.join('./offline_models'),
     ]
     
     model_names = {

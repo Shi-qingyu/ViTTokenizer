@@ -1,7 +1,9 @@
 submit_*
 demo_img/*
 output/*
+log
 tensorboard_logs
 *internal*
 guided-diffusion
 eval_results
+offline_models

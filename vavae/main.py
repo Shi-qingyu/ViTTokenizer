@@ -651,12 +651,18 @@ if __name__ == "__main__":
 
         if "callbacks" in lightning_config:
             callbacks_cfg = lightning_config.callbacks
+            print(f"Callbacks config: {callbacks_cfg}")
         else:
             callbacks_cfg = OmegaConf.create()
+            print(f"No callbacks config found, using default callbacks config: {default_callbacks_cfg}")
 
         if 'metrics_over_trainsteps_checkpoint' in callbacks_cfg:
             print(
-                'Caution: Saving checkpoints every n train steps without deleting. This might require some free space.')
+                'Caution: Saving checkpoints every n train steps without deleting. This might require some free space.'
+            )
+            # Get the step interval from config, default to 10000 if not specified
+            step_interval = callbacks_cfg.metrics_over_trainsteps_checkpoint.params.get('every_n_train_steps', 1000)
+            print(f'Step checkpoint interval: {step_interval}')
             default_metrics_over_trainsteps_ckpt_dict = {
                 'metrics_over_trainsteps_checkpoint':
                     {"target": 'pytorch_lightning.callbacks.ModelCheckpoint',
@@ -665,7 +671,7 @@ if __name__ == "__main__":
                          "filename": "{epoch:06}-{step:09}",
                          "verbose": True,
                          'save_top_k': -1,
-                         'every_n_train_steps': 10000,
+                         'every_n_train_steps': step_interval,
                          'save_weights_only': True
                      }
                      }

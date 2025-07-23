@@ -40,12 +40,12 @@ if [ "$WORLD_SIZE" -eq 1 ]; then
         echo "Using torchrun for multi-GPU training..."
         torchrun --nproc_per_node=$NPROC_PER_NODE \
             --standalone \
-            main.py \
+            vavae/main.py \
             --base "$config_path" \
             --train
     else
         echo "Using single GPU training..."
-        python main.py --base "$config_path" --train
+        python vavae/main.py --base "$config_path" --train
     fi
 else
     echo "Running multi-node training..."
@@ -54,7 +54,7 @@ else
         --node_rank=$RANK \
         --master_addr=$MASTER_ADDR \
         --master_port=$MASTER_PORT \
-        main.py \
+        vavae/main.py \
         --base "$config_path" \
         --train
 fi

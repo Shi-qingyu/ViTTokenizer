@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 URL_MAP = {"vgg_lpips": "https://heibox.uni-heidelberg.de/f/607503859c864bc1b30b/?dl=1"}
 
-CKPT_MAP = {"vgg_lpips": "vgg.pth"}
+CKPT_MAP = {"vgg_lpips": "lpips/vgg.pth"}
 
 MD5_MAP = {"vgg_lpips": "d507d7349b931f0638a25a48a722f98a"}
 
@@ -44,35 +44,52 @@ def get_ckpt_path(name, root, check=False):
     return path
 
 
+def get_local_ckpt_path(name, offline_models_dir="./offline_models"):
+    """Get checkpoint path from local offline_models directory"""
+    assert name in CKPT_MAP, f"Unknown model name: {name}"
+    local_path = os.path.join(offline_models_dir, CKPT_MAP[name])
+    if not os.path.exists(local_path):
+        raise FileNotFoundError(f"Local checkpoint not found at {local_path}. "
+                              f"Please ensure {CKPT_MAP[name]} is in the {offline_models_dir} directory.")
+    return local_path
+
+
 class LPIPS(nn.Module):
     # Learned perceptual metric
-    def __init__(self, use_dropout=True):
+    def __init__(self, use_dropout=True, use_local_checkpoint=True, offline_models_dir="./offline_models"):
         super().__init__()
         self.scaling_layer = ScalingLayer()
         self.chns = [64, 128, 256, 512, 512]  # vgg16 features
-        self.net = vgg16(pretrained=True, requires_grad=False)
+        self.net = vgg16(pretrained=False, requires_grad=False)
         self.lin0 = NetLinLayer(self.chns[0], use_dropout=use_dropout)
         self.lin1 = NetLinLayer(self.chns[1], use_dropout=use_dropout)
         self.lin2 = NetLinLayer(self.chns[2], use_dropout=use_dropout)
         self.lin3 = NetLinLayer(self.chns[3], use_dropout=use_dropout)
         self.lin4 = NetLinLayer(self.chns[4], use_dropout=use_dropout)
-        self.load_from_pretrained()
+        self.load_from_pretrained(use_local_checkpoint=use_local_checkpoint, offline_models_dir=offline_models_dir)
         for param in self.parameters():
             param.requires_grad = False
 
-    def load_from_pretrained(self, name="vgg_lpips"):
-        ckpt = get_ckpt_path(name, "movqgan/modules/losses/lpips")
+    def load_from_pretrained(self, name="vgg_lpips", use_local_checkpoint=False, offline_models_dir="./offline_models"):
+        if use_local_checkpoint:
+            ckpt = get_local_ckpt_path(name, offline_models_dir)
+            print("loading pretrained LPIPS loss from local checkpoint {}".format(ckpt))
+        
         self.load_state_dict(
             torch.load(ckpt, map_location=torch.device("cpu")), strict=False
         )
-        print("loaded pretrained LPIPS loss from {}".format(ckpt))
 
     @classmethod
-    def from_pretrained(cls, name="vgg_lpips"):
+    def from_pretrained(cls, name="vgg_lpips", use_local_checkpoint=False, offline_models_dir="./offline_models"):
         if name != "vgg_lpips":
             raise NotImplementedError
-        model = cls()
-        ckpt = get_ckpt_path(name)
+        model = cls(use_local_checkpoint=False)  # Don't load in __init__ when using classmethod
+        
+        if use_local_checkpoint:
+            ckpt = get_local_ckpt_path(name, offline_models_dir)
+        else:
+            ckpt = get_ckpt_path(name, "movqgan/modules/losses/lpips")
+        
         model.load_state_dict(
             torch.load(ckpt, map_location=torch.device("cpu")), strict=False
         )

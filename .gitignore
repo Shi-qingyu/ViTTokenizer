@@ -1,9 +1,11 @@
 submit_*
 demo_img/*
 output/*
-log
+logs
 tensorboard_logs
 *internal*
 guided-diffusion
 eval_results
 offline_models
+
+*.pyc
